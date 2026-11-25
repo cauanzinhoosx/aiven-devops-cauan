@@ -4,6 +4,7 @@ de dados abertos do Banco Central (SGS). Usado por app.py — concentra a lógic
 de acesso a dados num único módulo.
 """
 
+#imports
 import os
 import datetime
 from contextlib import contextmanager

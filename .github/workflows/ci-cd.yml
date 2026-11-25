@@ -40,7 +40,7 @@ jobs:
 
       - name: Checagem de sintaxe (sanidade da app)
         working-directory: app
-        run: python -m py_compile app.py bcb_client.py
+        run: python -m py_compile app.py db_client.py football_client.py
         # Nota: usamos py_compile (só verifica sintaxe) em vez de
         # `import app`, porque app.py chama bcb.init_db() assim que o
         # módulo é carregado (necessário para funcionar sob gunicorn em

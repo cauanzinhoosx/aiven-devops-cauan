@@ -1,4 +1,4 @@
-name: Dados - Refresh agendado (BCB)
+name: Dados - Refresh agendado (Cruzeiro)
 
 # Chama o endpoint /api/refresh periodicamente, mesmo sem visitas ao dashboard.
 # Útil para que a primeira visita do dia já encontre dados atualizados.

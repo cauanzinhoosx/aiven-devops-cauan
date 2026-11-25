@@ -2,87 +2,107 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard — Indicadores Econômicos (Dados Abertos BCB)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cruzeiro — Dashboard Celeste</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>📈 Indicadores Econômicos do Brasil</h1>
-    <p class="subtitle">
-      Dados abertos do Banco Central (SGS) · cache renovado a cada {{ data.cache_hours }}h ·
-      persistidos em PostgreSQL gerenciado pela Aiven.io
-    </p>
-  </header>
+  <main class="container">
+    <header>
+      <div class="crest" aria-label="Identidade celeste">CEC</div>
+      <div>
+        <h1>Dashboard Celeste</h1>
+        <p class="subtitle">Cruzeiro Esporte Clube · resultados e desempenho</p>
+      </div>
+      <div class="header-meta">Dados armazenados no PostgreSQL<br>Cache de {{ data.cache_hours }}h</div>
+    </header>
 
-  <section class="cards">
-    {% for ind in data.indicators %}
-    <div class="card">
-      <span class="label">{{ ind.name }}</span>
-      <span class="value">
-        {{ ind.latest_value if ind.latest_value is not none else "—" }}
-        <span class="unit">{{ ind.unit }}</span>
-      </span>
-      <span class="meta">
-        {% if ind.latest_date %}ref. {{ ind.latest_date }}{% else %}sem dados ainda{% endif %}
-        {% if ind.delta is not none %}
-          · <span class="{{ 'up' if ind.delta > 0 else ('down' if ind.delta < 0 else '') }}">
-            {{ "%+.2f"|format(ind.delta) }}
-          </span>
+    <div class="toolbar">
+      <button id="refresh-btn" class="btn" type="button">Atualizar dados</button>
+      <span id="refresh-status" class="toolbar-status" role="status" aria-live="polite"></span>
+    </div>
+
+
+    {% if data.refresh_error %}
+    <div class="empty" role="status">Não foi possível atualizar os dados do ESPN no momento. Os dados armazenados anteriormente, se houver, continuam disponíveis.</div>
+    {% endif %}
+    <h2 class="section-title">Últimos jogos · resumo dos {{ data.matches_count }} jogos carregados · temporada {{ data.season }}</h2>
+    <section class="cards">
+      <div class="card highlight"><span class="label">Vitórias</span><span class="value">{{ data.wins }}</span></div>
+      <div class="card"><span class="label">Empates</span><span class="value">{{ data.draws }}</span></div>
+      <div class="card"><span class="label">Derrotas</span><span class="value">{{ data.losses }}</span></div>
+      <div class="card"><span class="label">Gols marcados</span><span class="value">{{ data.goals_for }}</span></div>
+      <div class="card"><span class="label">Gols sofridos</span><span class="value">{{ data.goals_against }}</span></div>
+      <div class="card"><span class="label">Saldo de gols</span><span class="value">{{ '%+d'|format(data.goal_difference) }}</span></div>
+    </section>
+
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Resultados recentes</h2>
+        {% if data.recent %}
+          {% for match in data.recent %}
+          <div class="match">
+            <div>
+              <div class="teams">{{ match.home_team }} × {{ match.away_team }}</div>
+              <div class="date">{{ match.match_date.strftime('%d/%m/%Y') if match.match_date else 'Data indisponível' }}</div>
+              <div class="competition">{{ match.tournament or 'Competição' }}</div>
+            </div>
+            <div class="score">{{ match.home_score }} – {{ match.away_score }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty">Ainda não há resultados salvos. A primeira atualização pode levar alguns segundos.</p>
         {% endif %}
-      </span>
-    </div>
-    {% endfor %}
-    <div class="card muted">
-      <span class="label">Acessos ao dashboard</span>
-      <span class="value">{{ data.total_visits }}</span>
-      <span class="meta">uptime: {{ data.uptime_seconds }}s</span>
-    </div>
-  </section>
+      </div>
+      <div class="panel">
+        <h2>Próximos jogos</h2>
+        {% if data.upcoming %}
+          {% for match in data.upcoming %}
+          <div class="match">
+            <div>
+              <div class="teams">{{ match.home_team }} × {{ match.away_team }}</div>
+              <div class="date">{{ match.match_date.strftime('%d/%m/%Y · %H:%M UTC') if match.match_date else 'Data a confirmar' }}</div>
+              <div class="competition">{{ match.tournament or 'Competição' }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty">Nenhum próximo jogo disponível no cache.</p>
+        {% endif %}
+      </div>
+    </section>
 
-  <section class="chart-container">
-    <h2>Séries históricas (últimos {{ data.indicators[0].labels|length }} pontos)</h2>
-    <canvas id="indicatorsChart" height="90"></canvas>
-  </section>
 
-  <footer>
-    <small>
-      Atualiza automaticamente a cada 60s · Fonte:
-      <a href="https://dadosabertos.bcb.gov.br/" target="_blank" rel="noopener">dadosabertos.bcb.gov.br</a>
-      · <a href="/api/indicators">/api/indicators</a> · <a href="/healthz">/healthz</a>
-    </small>
-  </footer>
-
+    <footer>
+      Atualizado em {{ data.last_updated }} · <a href="{{ data.team_url }}" target="_blank" rel="noopener">Fonte: ESPN</a><br>
+      <a href="/api/dashboard">API do dashboard</a> · <a href="/healthz">Health check</a>
+    </footer>
+  </main>
   <script>
-    const indicators = {{ data.indicators | tojson }};
-    const colors = ["#4f46e5", "#16a34a", "#dc2626"];
-
-    const datasets = indicators.map((ind, i) => ({
-      label: ind.name + " (" + ind.unit + ")",
-      data: ind.values,
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length] + "26",
-      tension: 0.3,
-      yAxisID: i === 0 ? "y" : "y" + i,
-      fill: false
-    }));
-
-    const ctx = document.getElementById('indicatorsChart');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: indicators[0] ? indicators[0].labels : [],
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: true, position: 'bottom' } },
-        scales: { y: { beginAtZero: false } }
-      }
-    });
-
-    setTimeout(() => location.reload(), 60000);
+    (function () {
+      var btn = document.getElementById('refresh-btn');
+      var status = document.getElementById('refresh-status');
+      btn.addEventListener('click', async function () {
+        btn.disabled = true;
+        status.textContent = 'Atualizando... pode levar alguns segundos.';
+        try {
+          // A rota /api/refresh só aceita POST (GET retorna 405).
+          var res = await fetch('/api/refresh', { method: 'POST' });
+          var body = {};
+          try { body = await res.json(); } catch (e) { /* resposta sem JSON */ }
+          if (res.ok) {
+            status.textContent = 'Dados atualizados! Recarregando...';
+            location.reload();
+            return;
+          }
+          status.textContent = 'Erro ' + res.status + ': ' + (body.message || res.statusText || 'falha ao atualizar');
+        } catch (err) {
+          status.textContent = 'Não foi possível falar com o servidor: ' + err.message;
+        }
+        btn.disabled = false;
+      });
+    })();
   </script>
 </body>
 </html>
